@@ -27,6 +27,25 @@ class SensorResponse:
         self.last_crank_event_time = et
 
 
+class SetResistanceResponse:
+    # i'm sure there's better syntax for this, but I don't know python
+    # update_event_count=17, instantaneous_cadence=0, accumulated_power=19101, instantaneous_power=0, trainer_status=None, 
+    # target_power_limits=<TargetPowerLimit.operating_at_target_or_no_target_set: 1>, fe_state=<FEState.ready: 2>, lap_toggle=False,
+    # power_calibration_required=False, resistance_calibration_required=False, user_configuration_required=False)
+    def __init__(self, a, b, c, d, e, f, g, h, i , j, k):
+        self.update_event_count = a
+        self.instantaneous_cadence = b
+        self.accumulated_power = c
+        self.instantaneous_power = d
+        self.trainer_status = e
+        self.target_power_limits = f
+        self.fe_state = g
+        self.lap_toggle = h
+        self.power_calibration_required = i
+        self.resistance_calibration_required = j
+        self.user_configuration_required = k
+
+
 class BicycleSensorResponse:
     lastResponse = None
     def pageHandler(self, data):
@@ -66,17 +85,7 @@ async def setTrainerResistance(address, resistance):
         await asyncio.sleep(5.0)
         await trainer.disable_fec_notifications()
         return responseHandler.lastResponse
-
-
-@app.get("/")
-def read_root():
-    return {"Hello": "World"}
-
-
-# @app.get("/items/{item_id}")
-# def read_item(item_id: int, q: Optional[str] = None):
-#     return {"item_id": item_id, "q": q}
-
+        
 
 @app.get("/discover")
 async def read_root():
@@ -96,7 +105,7 @@ async def read_item(bluetoothAddress: str):
     try:
         bluetoothResponse = await readSpeedCadence(bluetoothAddress)
         print(bluetoothResponse)
-        apiResponse = SensorResponse(bluetoothResponse[0], bluetoothResponse[1], bluetoothResponse[2], bluetoothResponse[3])
+        apiResponse = SensorResponse(*bluetoothResponse)
         print(apiResponse)
         return apiResponse
     except Exception as e:
@@ -107,10 +116,11 @@ async def read_item(bluetoothAddress: str):
 
 @app.post("/trainer/{bluetoothAddress}/resistance/{resistance}")
 async def read_item(bluetoothAddress: str, resistance: int):
-    print("got " + bluetoothAddress + " and " + str(resistance))
+    print("setting trainer " + bluetoothAddress + " to " + str(resistance))
     try:
         bluetoothResponse = await setTrainerResistance(bluetoothAddress, resistance)
-        return bluetoothResponse
+        apiResponse = SetResistanceResponse(*bluetoothResponse)
+        return apiResponse
     except Exception as e:
         ## TODO: fix me, should return 4xx or 5xx status code
         #return 'failed to get speed and cadence data'
