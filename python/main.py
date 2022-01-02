@@ -7,6 +7,7 @@ from bleak import discover
 from bleak import BleakClient
 
 from pycycling.cycling_speed_cadence_service import CyclingSpeedCadenceService
+from pycycling.tacx_trainer_control import TacxTrainerControl
 
 import json
 
@@ -53,6 +54,20 @@ async def readSpeedCadence(address):
         return responseHandler.lastResponse
 
 
+async def setTrainerResistance(address, resistance):
+    async with BleakClient(address) as client:
+        responseHandler = BicycleSensorResponse()
+        await client.is_connected()
+        trainer = TacxTrainerControl(client)
+        trainer.set_specific_trainer_data_page_handler(responseHandler.pageHandler)
+        trainer.set_general_fe_data_page_handler(responseHandler.pageHandler)
+        await trainer.enable_fec_notifications()
+        await trainer.set_basic_resistance(resistance)
+        await asyncio.sleep(5.0)
+        await trainer.disable_fec_notifications()
+        return responseHandler.lastResponse
+
+
 @app.get("/")
 def read_root():
     return {"Hello": "World"}
@@ -84,6 +99,18 @@ async def read_item(bluetoothAddress: str):
         apiResponse = SensorResponse(bluetoothResponse[0], bluetoothResponse[1], bluetoothResponse[2], bluetoothResponse[3])
         print(apiResponse)
         return apiResponse
+    except Exception as e:
+        ## TODO: fix me, should return 4xx or 5xx status code
+        #return 'failed to get speed and cadence data'
+        return e
+
+
+@app.post("/trainer/{bluetoothAddress}/resistance/{resistance}")
+async def read_item(bluetoothAddress: str, resistance: int):
+    print("got " + bluetoothAddress + " and " + str(resistance))
+    try:
+        bluetoothResponse = await setTrainerResistance(bluetoothAddress, resistance)
+        return bluetoothResponse
     except Exception as e:
         ## TODO: fix me, should return 4xx or 5xx status code
         #return 'failed to get speed and cadence data'
