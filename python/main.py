@@ -29,7 +29,14 @@ class SensorResponse:
 class BicycleSensorResponse:
     lastResponse = None
     def pageHandler(self, data):
-        print('were in the page handler')
+        ## TODO: if this data is to be actually useful
+        ## this class needs to accumulate data over time
+        ## and do some time based math to derive speed and
+        ## cadence
+        ## RPM is probably (rev2 - rev1)/(t2 - t1)
+        ## Speed probably needs wheel size -- something like
+        ## ((cwr2 - cwr1) * rollout)/(t2 - t1) where rollout
+        ## needs to be defined by user input (or default to 700x23?)
         print(data)
         self.lastResponse = data
 
