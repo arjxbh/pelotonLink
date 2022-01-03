@@ -29,10 +29,15 @@ fetch("https://api.onepeloton.com/api/ride/" + rideID + "/details?stream_source=
 
     var classDuration = Number(ride.ride.duration);
 
+    var cadResistStyle = document.createElement('style');
+    cadResistStyle.tyle = 'text/css';
+    cadResistStyle.innerHTML = '.metricDetail { font-size: 30px; height: 50px; }';
+    document.getElementsByTagName('head')[0].appendChild(cadResistStyle);
+
     var cadResistDiv = document.createElement('div');
     cadResistDiv.id = 'cadresist';
-    cadResistDiv.style = 'color:white; position:absolute; top: 240px; left: 40px; margin-top: 35px; font-size: 30px;';
-    cadResistDiv.innerHTML = '<div id="cadresisttxt" style="width:100%;color:white;text-align:center;">metrics start during warmup</div><div style="margin-top:10px;width:100%; height:2px; background-color:#555555"><div id="cadresistprogress" style="width:0%;transition:990ms linear;height:2px;background-color:white"></div></div>';
+    cadResistDiv.style = 'color:white; position:absolute; bottom: 180px; left: 40px;';
+    cadResistDiv.innerHTML = '<div id="cadresisttxt" style="width:100%;color:white;">metrics start during warmup</div><div style="margin-top:10px;width:100%; height:2px; background-color:#555555"><div id="cadresistprogress" style="width:0%;transition:990ms linear;height:2px;background-color:white"></div></div>';
     document.querySelector("div[class='jw-wrapper jw-reset']").after(cadResistDiv);
 
     var cadResisTextDiv = document.getElementById('cadresisttxt');
@@ -91,7 +96,10 @@ fetch("https://api.onepeloton.com/api/ride/" + rideID + "/details?stream_source=
       for (var i = 0; i < ride.instructor_cues.length; i++) {
         var cue = ride.instructor_cues[i];
         if (timecode >= Number(cue.offsets.start) && timecode <= Number(cue.offsets.end)) {
-           view = "<p>cadence: " + cue.cadence_range.lower + " - " + cue.cadence_range.upper + " </p><p> resistance: " + schwinnResistance[cue.resistance_range.lower] + " - " + schwinnResistance[cue.resistance_range.upper] + "&nbsp;&nbsp;&nbsp;&nbsp; (" + cue.resistance_range.lower + " - " + cue.resistance_range.upper + ")</p>";
+           view = "<div class='metricDetail'>resistance (peloton): " + cue.resistance_range.lower + " - " + cue.resistance_range.upper + "</div>";
+           view += "<div class='metricDetail'>resistance (adj - %): " + schwinnResistance[cue.resistance_range.lower] + " - " + schwinnResistance[cue.resistance_range.upper] + " %</div>"
+           view += "<div class='metricDetail'>resistance (adj - watts): " + schwinnResistance[cue.resistance_range.lower] + " - " + schwinnResistance[cue.resistance_range.upper] + " watts</div>"
+           view += "<div class='metricDetail'>cadence: " + cue.cadence_range.lower + " - " + cue.cadence_range.upper + " RPM </div>";
            cadResisTextDiv.innerHTML = view;
           if (timecode == Number(cue.offsets.start)) {
             cadResisProgressDiv.style.transition = "none";
