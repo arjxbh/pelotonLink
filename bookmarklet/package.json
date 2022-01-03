@@ -1,0 +1,23 @@
+{
+  "name": "peloton-bookmarklet",
+  "version": "1.0.0",
+  "description": "bookmarklet to merge peloton metadata with video",
+  "main": "src/tacx.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arjxbh/pelotonLink.git"
+  },
+  "author": "Arjun Bhatnagar",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/arjxbh/pelotonLink/issues"
+  },
+  "homepage": "https://github.com/arjxbh/pelotonLink#readme",
+  "devDependencies": {
+    "webpack": "^5.65.0",
+    "webpack-cli": "^4.9.1"
+  }
+}

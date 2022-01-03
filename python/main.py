@@ -28,10 +28,7 @@ class SensorResponse:
 
 
 class SetResistanceResponse:
-    # i'm sure there's better syntax for this, but I don't know python
-    # update_event_count=17, instantaneous_cadence=0, accumulated_power=19101, instantaneous_power=0, trainer_status=None, 
-    # target_power_limits=<TargetPowerLimit.operating_at_target_or_no_target_set: 1>, fe_state=<FEState.ready: 2>, lap_toggle=False,
-    # power_calibration_required=False, resistance_calibration_required=False, user_configuration_required=False)
+    # I'm sure there's better syntax for this, but I don't know python
     def __init__(self, a, b, c, d, e, f, g, h, i , j, k):
         self.update_event_count = a
         self.instantaneous_cadence = b
