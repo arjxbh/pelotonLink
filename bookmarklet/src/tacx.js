@@ -2,6 +2,9 @@
 var rideID = window.location.pathname.split("/");
 rideID = rideID[rideID.length - 1];
 
+// TODO: don't use a global var for this
+var lastTrainerUpdate = 0;
+
 function convertResistance(min, max) {
   // assuming max setting of 200 = 200watts, that's probably not entirely correct
   // testing with map 100 "watts" = 100% peloton (not actually watts)
@@ -29,8 +32,10 @@ async function getBluetoothAddress() {
 }
 
 async function setTrainerResistance(bluetoothAddress, newResistance, lastResistance) {
-  // TODO: use a better pattern to track lastResistance
-  if (newResistance === lastResistance) return;
+  // TODO: use a better pattern to track 
+  var thisUpdate = Math.floor(Date.now() / 1000);
+  if (newResistance === lastResistance && ((thisUpdate - lastTrainerUpdate) < 20)) return;
+  lastTrainerUpdate = thisUpdate;
   console.log(`Setting resistance of trainer at ${bluetoothAddress} to ${newResistance} (last value: ${lastResistance})`);
   try {
     var res = await fetch(`http://127.0.0.1:8000/trainer/${bluetoothAddress}/resistance/${newResistance}`, { method: 'POST' });
