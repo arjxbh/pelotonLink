@@ -2,6 +2,46 @@
 var rideID = window.location.pathname.split("/");
 rideID = rideID[rideID.length - 1];
 
+function convertResistance(min, max) {
+  // assuming max setting of 200 = 200watts, that's probably not entirely correct
+  // testing with map 100 "watts" = 100% peloton (not actually watts)
+
+  return {
+    percent: {
+      min: Math.floor((min / 200) * 100),
+      max: Math.floor((max / 200) * 100),
+      avg: Math.floor((((min + max) / 2) / 200) * 100),
+    },
+    watts: {
+      min: min,
+      max: max,
+      avg: Math.floor((min + max) / 2),
+    }
+  }
+}
+
+async function getBluetoothAddress() {
+  var response = await fetch("http://127.0.0.1:8000/discover");
+  var devices = await response.json();
+  var foundDevice = devices.find(dev => dev.name.toLowerCase().includes('tacx'));
+
+  return foundDevice.address;
+}
+
+async function setTrainerResistance(bluetoothAddress, newResistance, lastResistance) {
+  // TODO: use a better pattern to track lastResistance
+  if (newResistance === lastResistance) return;
+  console.log(`Setting resistance of trainer at ${bluetoothAddress} to ${newResistance} (last value: ${lastResistance})`);
+  try {
+    var res = await fetch(`http://127.0.0.1:8000/trainer/${bluetoothAddress}/resistance/${newResistance}`, { method: 'POST' });
+    var stats = await res.json();
+    console.log('success setting trainer resistance');
+    console.log(stats);
+  } catch (e) {
+    console.err('failed to set trainer resistance');
+  }
+}
+
 // peloton doesn't respond with target metrics if credentials are not included
 fetch("https://api.onepeloton.com/api/ride/" + rideID + "/details?stream_source=multichannel", {
     "headers": {
@@ -22,12 +62,13 @@ fetch("https://api.onepeloton.com/api/ride/" + rideID + "/details?stream_source=
   }).then(function (response) {
     return response.json()
   })
-  .then(function (ride) {
-
-    // schwinn mapping, values in order corresponding to peloton
-    var schwinnResistance = [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,3,4,5,6,7,8,10,11,13,13,14,15,16,17,18,19,21,22,24,25,27,28,30,31,33,34,36,37,39,40,42,43,45,46,48,49,51,52,54,55,57,58,60,61,63,64,66,67,69,70,72,73,75,76,78,79,81,82,84,85,87,88,90,91,93,94,96,97,99,100];
-
+  .then(async function (ride) {
     var classDuration = Number(ride.ride.duration);
+
+    var trainerAddress = await getBluetoothAddress();
+    console.log(`Bluetooth Trainer found at: ${trainerAddress}`);
+    if (trainerAddress) setTrainerResistance(trainerAddress, 0, null);
+    var lastValueSet = 0;
 
     var cadResistStyle = document.createElement('style');
     cadResistStyle.tyle = 'text/css';
@@ -96,9 +137,12 @@ fetch("https://api.onepeloton.com/api/ride/" + rideID + "/details?stream_source=
       for (var i = 0; i < ride.instructor_cues.length; i++) {
         var cue = ride.instructor_cues[i];
         if (timecode >= Number(cue.offsets.start) && timecode <= Number(cue.offsets.end)) {
+           adjRes = convertResistance(cue.resistance_range.lower, cue.resistance_range.upper);
+           if (trainerAddress) setTrainerResistance(trainerAddress, adjRes.watts.min, lastValueSet);
+           lastValueSet = adjRes.watts.min;
            view = "<div class='metricDetail'>resistance (peloton): " + cue.resistance_range.lower + " - " + cue.resistance_range.upper + "</div>";
-           view += "<div class='metricDetail'>resistance (adj - %): " + schwinnResistance[cue.resistance_range.lower] + " - " + schwinnResistance[cue.resistance_range.upper] + " %</div>"
-           view += "<div class='metricDetail'>resistance (adj - watts): " + schwinnResistance[cue.resistance_range.lower] + " - " + schwinnResistance[cue.resistance_range.upper] + " watts</div>"
+           view += "<div class='metricDetail'>resistance (adj - %): " + adjRes.percent.min + " - " + adjRes.percent.max + " %</div>"
+           view += "<div class='metricDetail'>resistance (adj - watts): " + adjRes.watts.min + " - " + adjRes.watts.max + " watts</div>"
            view += "<div class='metricDetail'>cadence: " + cue.cadence_range.lower + " - " + cue.cadence_range.upper + " RPM </div>";
            cadResisTextDiv.innerHTML = view;
           if (timecode == Number(cue.offsets.start)) {

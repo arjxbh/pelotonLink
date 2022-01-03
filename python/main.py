@@ -1,6 +1,7 @@
 from typing import Optional
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 import asyncio
 from bleak import discover
@@ -12,6 +13,19 @@ from pycycling.tacx_trainer_control import TacxTrainerControl
 import json
 
 app = FastAPI()
+
+origins = [
+    "https://members.onepeloton.com",
+    "http://localhost",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class BluetoothDevice:
     def __init__(self, name, address):
@@ -69,7 +83,7 @@ async def readSpeedCadence(address):
         await trainer.disable_csc_measurement_notifications()
         return responseHandler.lastResponse
 
-
+# TODO: cache current resistance value so that spamming the API won't DOS the trainer
 async def setTrainerResistance(address, resistance):
     async with BleakClient(address) as client:
         responseHandler = BicycleSensorResponse()
