@@ -34,14 +34,14 @@ async function getBluetoothAddress() {
 async function setTrainerResistance(bluetoothAddress, newResistance, lastResistance) {
   // TODO: use a better pattern to track 
   var thisUpdate = Math.floor(Date.now() / 1000);
-  if (newResistance === lastResistance && ((thisUpdate - lastTrainerUpdate) < 20)) return;
+  if (newResistance === lastResistance && ((thisUpdate - lastTrainerUpdate) < 5)) return;
   lastTrainerUpdate = thisUpdate;
   console.log(`Setting resistance of trainer at ${bluetoothAddress} to ${newResistance} (last value: ${lastResistance})`);
   try {
     var res = await fetch(`http://127.0.0.1:8000/trainer/${bluetoothAddress}/resistance/${newResistance}`, { method: 'POST' });
     var stats = await res.json();
     console.log('success setting trainer resistance');
-    console.log(stats);
+    // console.log(stats);
   } catch (e) {
     console.err('failed to set trainer resistance');
   }
@@ -49,24 +49,24 @@ async function setTrainerResistance(bluetoothAddress, newResistance, lastResista
 
 // peloton doesn't respond with target metrics if credentials are not included
 fetch("https://api.onepeloton.com/api/ride/" + rideID + "/details?stream_source=multichannel", {
-    "headers": {
-      "accept": "application/json, text/plain, */*",
-      "accept-language": "en-US",
-      "peloton-platform": "web",
-      "sec-fetch-dest": "empty",
-      "sec-fetch-mode": "cors",
-      "sec-fetch-site": "same-site",
-      "x-requested-with": "XmlHttpRequest"
-    },
-    "referrer": "https://members.onepeloton.com/classes/player/" + rideID,
-    "referrerPolicy": "no-referrer-when-downgrade",
-    "body": null,
-    "method": "GET",
-    "mode": "cors",
-    "credentials": "include"
-  }).then(function (response) {
-    return response.json()
-  })
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-language": "en-US",
+    "peloton-platform": "web",
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-site",
+    "x-requested-with": "XmlHttpRequest"
+  },
+  "referrer": "https://members.onepeloton.com/classes/player/" + rideID,
+  "referrerPolicy": "no-referrer-when-downgrade",
+  "body": null,
+  "method": "GET",
+  "mode": "cors",
+  "credentials": "include"
+}).then(function (response) {
+  return response.json()
+})
   .then(async function (ride) {
     var classDuration = Number(ride.ride.duration);
 
@@ -139,17 +139,25 @@ fetch("https://api.onepeloton.com/api/ride/" + rideID + "/details?stream_source=
 
       // convert mm:ss timestamp to cue timecode in the API (seconds elapsed)
       var timecode = (classDuration - (Number(timestamp[0]) * 60 + Number(timestamp[1]))) + Number(ride.ride.pedaling_start_offset);
+      // timecode is seconds elapsed
+      var futureTimecode = timecode + 10; // fire trainer settings 10 seconds early
+      // console.log(`FUTURE ${futureTimecode} vs NOW ${timecode}`);
+
       for (var i = 0; i < ride.instructor_cues.length; i++) {
         var cue = ride.instructor_cues[i];
+        // console.log(cue.offsets);
+        adjRes = convertResistance(cue.resistance_range.lower, cue.resistance_range.upper);
+
+        if (futureTimecode >= Number(cue.offsets.start) && futureTimecode <= Number(cue.offsets.end)) {
+          if (trainerAddress) setTrainerResistance(trainerAddress, adjRes.watts.min, lastValueSet);
+          lastValueSet = adjRes.watts.min;
+        }
         if (timecode >= Number(cue.offsets.start) && timecode <= Number(cue.offsets.end)) {
-           adjRes = convertResistance(cue.resistance_range.lower, cue.resistance_range.upper);
-           if (trainerAddress) setTrainerResistance(trainerAddress, adjRes.watts.min, lastValueSet);
-           lastValueSet = adjRes.watts.min;
-           view = "<div class='metricDetail'>resistance (peloton): " + cue.resistance_range.lower + " - " + cue.resistance_range.upper + "</div>";
-           view += "<div class='metricDetail'>resistance (adj - %): " + adjRes.percent.min + " - " + adjRes.percent.max + " %</div>"
-           view += "<div class='metricDetail'>resistance (adj - watts): " + adjRes.watts.min + " - " + adjRes.watts.max + " watts</div>"
-           view += "<div class='metricDetail'>cadence: " + cue.cadence_range.lower + " - " + cue.cadence_range.upper + " RPM </div>";
-           cadResisTextDiv.innerHTML = view;
+          view = "<div class='metricDetail'>resistance (peloton): " + cue.resistance_range.lower + " - " + cue.resistance_range.upper + "</div>";
+          view += "<div class='metricDetail'>resistance (adj - %): " + adjRes.percent.min + " - " + adjRes.percent.max + " %</div>"
+          //view += "<div class='metricDetail'>resistance (adj - watts): " + adjRes.watts.min + " - " + adjRes.watts.max + " watts</div>"
+          view += "<div class='metricDetail'>cadence: " + cue.cadence_range.lower + " - " + cue.cadence_range.upper + " RPM </div>";
+          cadResisTextDiv.innerHTML = view;
           if (timecode == Number(cue.offsets.start)) {
             cadResisProgressDiv.style.transition = "none";
             cadResisProgressDiv.style.width = "0%";

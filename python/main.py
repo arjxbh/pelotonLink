@@ -84,11 +84,15 @@ async def readSpeedCadence(address):
         return responseHandler.lastResponse
 
 # TODO: cache current resistance value so that spamming the API won't DOS the trainer
+# TODO: create a method that can do this by setting power instead of basic reistance
 async def setTrainerResistance(address, resistance):
     async with BleakClient(address) as client:
         responseHandler = BicycleSensorResponse()
         await client.is_connected()
         trainer = TacxTrainerControl(client)
+        # r = (resistance / 100) * 300
+        # await trainer.set_target_power(r)
+        # return []
         trainer.set_specific_trainer_data_page_handler(responseHandler.pageHandler)
         trainer.set_general_fe_data_page_handler(responseHandler.pageHandler)
         await trainer.enable_fec_notifications()
