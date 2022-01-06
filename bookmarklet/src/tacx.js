@@ -128,7 +128,7 @@ fetch("https://api.onepeloton.com/api/ride/" + rideID + "/details?stream_source=
       },
       observer = new MutationObserver(mCallback);
 
-    function mCallback(mutations) {
+    function mCallback(mutations) { 
       // if the course has not started (1 minute warm-up), exit
       var timestamp = document.querySelector("p[data-test-id='time-to-complete']");
       if (!timestamp) return;
