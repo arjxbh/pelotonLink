@@ -58,8 +58,10 @@ class SetResistanceResponse:
 
 
 class BicycleSensorResponse:
-    lastResponse = None
-    def pageHandler(self, data):
+    cadenceResponse = None
+    feResponse = None
+    trainerResponse = None
+    def cadenceHandler(self, data):
         ## TODO: if this data is to be actually useful
         ## this class needs to accumulate data over time
         ## and do some time based math to derive speed and
@@ -68,8 +70,17 @@ class BicycleSensorResponse:
         ## Speed probably needs wheel size -- something like
         ## ((cwr2 - cwr1) * rollout)/(t2 - t1) where rollout
         ## needs to be defined by user input (or default to 700x23?)
+        print('cadence handler --')
         print(data)
-        self.lastResponse = data
+        self.cadenceResponse = data
+    def feHandler(self, data):
+        print('fe handler --')
+        print(data)
+        self.feResponse = data
+    def trainerHandler(self, data):
+        print('trainer handler --')
+        print(data)
+        self.trainerHandler = data
 
 
 async def readSpeedCadence(address):
@@ -77,13 +88,12 @@ async def readSpeedCadence(address):
         responseHandler = BicycleSensorResponse()
         await client.is_connected()
         trainer = CyclingSpeedCadenceService(client)
-        trainer.set_csc_measurement_handler(responseHandler.pageHandler)
+        trainer.set_csc_measurement_handler(responseHandler.cadenceHandler)
         await trainer.enable_csc_measurement_notifications()
         await asyncio.sleep(5.0)
         await trainer.disable_csc_measurement_notifications()
         return responseHandler.lastResponse
 
-# TODO: cache current resistance value so that spamming the API won't DOS the trainer
 # TODO: create a method that can do this by setting power instead of basic reistance
 async def setTrainerResistance(address, resistance):
     async with BleakClient(address) as client:
@@ -93,17 +103,17 @@ async def setTrainerResistance(address, resistance):
         # r = (resistance / 100) * 300
         # await trainer.set_target_power(r)
         # return []
-        trainer.set_specific_trainer_data_page_handler(responseHandler.pageHandler)
-        trainer.set_general_fe_data_page_handler(responseHandler.pageHandler)
+        trainer.set_specific_trainer_data_page_handler(responseHandler.trainerHandler)
+        trainer.set_general_fe_data_page_handler(responseHandler.feHandler)
         await trainer.enable_fec_notifications()
         await trainer.set_basic_resistance(resistance)
         await asyncio.sleep(5.0)
         await trainer.disable_fec_notifications()
-        return responseHandler.lastResponse
+        return responseHandler.trainerHandler
         
 
 @app.get("/discover")
-async def read_root():
+async def read_root():  
     devices = await discover()
     foundDevices = [];
     print(devices)
@@ -135,6 +145,8 @@ async def read_item(bluetoothAddress: str, resistance: int):
     try:
         bluetoothResponse = await setTrainerResistance(bluetoothAddress, resistance)
         apiResponse = SetResistanceResponse(*bluetoothResponse)
+        print('resistance api response')
+        print(apiResponse)
         return apiResponse
     except Exception as e:
         ## TODO: fix me, should return 4xx or 5xx status code
