@@ -119,7 +119,7 @@ class pelotonLink {
             // TODO: use stats to update UI
             console.log(`success setting trainer resistance to ${resistance}`);
         } catch (e) {
-            console.err(`failed to set trainer resistance to ${resistance}`);
+            console.error(`failed to set trainer resistance to ${resistance}`);
         }
     }
 
