@@ -1,5 +1,9 @@
 class pelotonLink {
     constructor() {
+        // constants
+        this.trainerBuffer = 10; // minimum seconds between pushes to trainer
+
+        // state variables
         this.rideId = window.location.pathname.split('/').pop();
         this.lastTrainerUpdate = 0;
         this.rideDetails = {};
@@ -7,9 +11,63 @@ class pelotonLink {
         this.trainerTimecode = 0;
         this.classDuration = 0;
         this.pedalingStartOffset = 0;
-        this.trainerBuffer = 10; // minimum seconds between pushes to trainer
         this.lastTrainerPush = 0;
         this.bluetoothAddress = '';
+        this.bluetoothName;
+
+        this.injectCSS();
+        this.injectUI();
+        this.getBluetoothTrainer();
+    }
+
+    injectCSS() {
+        const style = document.createElement('style');
+        style.style = 'text/css';
+        style.innerHTML = '#overlayContainer { position: absolute; display: flex; flex-wrap: wrap; bottom: 180px; left: 40px; height: 300px; max-width: 100px; } ';
+        style.innerHTML += '.statsContainer { font-size: 30px; border-radius: 5px; opacity: 0.3; background-color: #EFEFEF; margin: 10px; color: #444; padding: 10px; } ';
+        style.innerHTML += '.descriptor { font-size: 15px; padding-right: 30px; min-width: 110px; } ';
+        style.innerHTML += '.lineItem { display: flex; margin-top: 10px; width: 300px; justify-content: right; } ';
+        style.innerHTML += '.metricValue { min-width: 150px } ';
+        style.innerHTML += '#cadresistprogress { width: 0%; transition: 990ms linear; height: 2px; background-color: #F00; margin-top: 20px; } ';
+        document.getElementsByTagName('head')[0].appendChild(style);
+    }
+
+    injectUI() {
+        const outputDiv = document.createElement('div');
+        outputDiv.id = 'overlayContainer';
+        outputDiv.innerHTML =
+            `<div id="targetMetrics" class="statsContainer">
+                <div class="lineItem">
+                    <div class="descriptor">resistance (peloton)</div>
+                    <div id="pReistanceValue" class="metricValue">0</div>
+                </div>
+                <div class="lineItem">
+                    <div class="descriptor">resistance (adj %)</div>
+                    <div id="tReistanceValue" class="metricValue">0</div>
+                </div>
+                <div class="lineItem">
+                    <div class="descriptor">cadence</div>
+                    <div id="cadenceValue" class="metricValue">0</div>
+                </div>
+                <div id="cadresistprogress"></div>
+            </div>`;
+        outputDiv.innerHTML +=
+            `<div id="trainerOutput" class="statsContainer">
+                <div class="lineItem">
+                    <div class="descriptor">trainer:</div>
+                    <div class="descriptor" id="trainerName">${this.bluetoothName || 'connecting...'}</div>
+                </div>
+                <div class="lineItem">
+                    <div class="descriptor">cadence</div>
+                    <div id="actualCadenceValue" class="metricValue">0</div>
+                </div>
+                <div class="lineItem">
+                    <div class="descriptor">power</div>
+                    <div id="powerValue" class="metricValue">0</div>
+                </div>
+            </div>`;
+
+        document.querySelector("div[class='jw-wrapper jw-reset']").after(outputDiv);
     }
 
     async getRideDetails() {
@@ -39,10 +97,12 @@ class pelotonLink {
         return this.rideDetails;
     }
 
-    async getBluetoothAddress() {
+    async getBluetoothTrainer() {
         const response = await fetch("http://127.0.0.1:8000/discover");
         const devices = await response.json();
         this.bluetoothAddress = devices.find(dev => dev.name.toLowerCase().includes('tacx')).address;
+        this.bluetoothName = devices.find(dev => dev.name.toLowerCase().includes('tacx')).name;
+        document.getElementById('trainerName').innerHTML = this.bluetoothName;
         return this.bluetoothAddress;
     }
 
@@ -53,8 +113,9 @@ class pelotonLink {
         console.log(`Setting resistance of ${resistance} for trainer at ${bluetoothAddress}`);
 
         try {
-            const response = await fetch(`http://127.0.0.1:8000/trainer/${bluetoothAddress}/resistance/${newResistance}`, { method: 'POST' });
+            const response = await fetch(`http://127.0.0.1:8000/trainer/${bluetoothAddress}/resistance/${resistance}`, { method: 'POST' });
             const stats = await response.json();
+            console.log(stats);
             // TODO: use stats to update UI
             console.log(`success setting trainer resistance to ${resistance}`);
         } catch (e) {
@@ -63,13 +124,30 @@ class pelotonLink {
     }
 
     convertResistance(min, max) {
-
+        return {
+            percent: {
+                min: Math.floor((min / 200) * 100),
+                max: Math.floor((max / 200) * 100),
+                avg: Math.floor((((min + max) / 2) / 200) * 100),
+            },
+        }
     }
 
-    updateUiOutput(cue) {
-        console.log('update UI!')
-        console.log(`cadence: ${cue.cadence_range.lower} - ${cue.cadence_range.upper}`);
-        console.log(`reistance: ${cue.resistance_range.lower} - ${cue.resistance_range.upper}`);
+    updateUiOutput(cue, timecode) {
+        const trainer = this.convertResistance(cue.resistance_range.lower, cue.resistance_range.upper);
+        document.getElementById('pReistanceValue').innerHTML = `${cue.resistance_range.lower} - ${cue.resistance_range.upper}`;
+        document.getElementById('cadenceValue').innerHTML = `${cue.cadence_range.lower} - ${cue.cadence_range.upper} rpm`;
+        document.getElementById('tReistanceValue').innerHTML = `${trainer.percent.min} - ${trainer.percent.max} %`;
+
+        let cadResisProgressDiv = document.getElementById('cadresistprogress');
+
+        if (timecode == Number(cue.offsets.start)) {
+            cadResisProgressDiv.style.transition = "none";
+            cadResisProgressDiv.style.width = "0%";
+        } else {
+            cadResisProgressDiv.style.transition = "990ms linear";
+            cadResisProgressDiv.style.width = Math.round((((timecode) - cue.offsets.start) / (cue.offsets.end - cue.offsets.start)) * 100) + "%";
+        }
     }
 
     findMatchingMetricOffset(timecode) {
@@ -84,16 +162,15 @@ class pelotonLink {
         timestamp = timestamp.innerHTML.split(":");
         if (timestamp.length != 2) return;
 
-        // do we really need pedaling start offset???
         this.uiTimecode = (this.classDuration - (Number(timestamp[0]) * 60 + Number(timestamp[1])))
             + Number(this.pedalingStartOffset);
 
-        this.updateUiOutput(this.findMatchingMetricOffset(this.uiTimecode));
+        this.updateUiOutput(this.findMatchingMetricOffset(this.uiTimecode), this.uiTimecode);
 
         this.trainerTimecode = this.uiTimecode + Number(this.pedalingStartOffset);
 
-        console.log('Trainer::::');
-        console.log(this.findMatchingMetricOffset(this.trainerTimecode));
+        const { resistance_range } = this.findMatchingMetricOffset(this.trainerTimecode);
+        this.setTrainerResistance(this.bluetoothAddress, resistance_range.lower, this.uiTimecode);
     }
 }
 
