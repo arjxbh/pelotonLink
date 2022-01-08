@@ -15,6 +15,8 @@ class pelotonLink {
         this.bluetoothAddress = '';
         this.bluetoothName;
 
+        this.trainerBusy = false;
+
         this.injectCSS();
         this.injectUI();
         this.getBluetoothTrainer();
@@ -98,8 +100,10 @@ class pelotonLink {
     }
 
     async getBluetoothTrainer() {
+        this.trainerBusy = true;
         const response = await fetch("http://127.0.0.1:8000/discover");
         const devices = await response.json();
+        this.trainerBusy = false;
         this.bluetoothAddress = devices.find(dev => dev.name.toLowerCase().includes('tacx')).address;
         this.bluetoothName = devices.find(dev => dev.name.toLowerCase().includes('tacx')).name;
         document.getElementById('trainerName').innerHTML = this.bluetoothName;
@@ -113,10 +117,13 @@ class pelotonLink {
         console.log(`Setting resistance of ${resistance} for trainer at ${bluetoothAddress}`);
 
         try {
+            if (this.trainerBusy) return;
+            this.trainerBusy = true;
             const response = await fetch(`http://127.0.0.1:8000/trainer/${bluetoothAddress}/resistance/${resistance}`, { method: 'POST' });
             const stats = await response.json();
-            console.log(stats);
-            // TODO: use stats to update UI
+            this.trainerBusy = false;
+            if (typeof stats.instantaneous_cadence !== "undefined") document.getElementById('actualCadenceValue').innerHTML = `${stats.instantaneous_cadence} rpm`;
+            if (typeof stats.instantaneous_power !== "undefined") document.getElementById('powerValue').innerHTML = `${stats.instantaneous_power} watts`;
             console.log(`success setting trainer resistance to ${resistance}`);
         } catch (e) {
             console.error(`failed to set trainer resistance to ${resistance}`);
@@ -167,7 +174,7 @@ class pelotonLink {
 
         this.updateUiOutput(this.findMatchingMetricOffset(this.uiTimecode), this.uiTimecode);
 
-        this.trainerTimecode = this.uiTimecode + Number(this.pedalingStartOffset);
+        this.trainerTimecode = this.uiTimecode + 20;
 
         const { resistance_range } = this.findMatchingMetricOffset(this.trainerTimecode);
         this.setTrainerResistance(this.bluetoothAddress, resistance_range.lower, this.uiTimecode);
@@ -190,4 +197,6 @@ const start = async () => {
     observer.observe(mPar, options);
 }
 
-start();
+// TODO: this is super janky, find a better way to 
+// detect that the player is loaded
+setTimeout(() => start(), 10000);
