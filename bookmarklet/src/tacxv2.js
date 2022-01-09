@@ -25,12 +25,12 @@ class pelotonLink {
     injectCSS() {
         const style = document.createElement('style');
         style.style = 'text/css';
-        style.innerHTML = '#overlayContainer { position: absolute; display: flex; flex-wrap: wrap; bottom: 180px; left: 40px; height: 300px; max-width: 100px; } ';
-        style.innerHTML += '.statsContainer { font-size: 30px; border-radius: 5px; opacity: 0.3; background-color: #EFEFEF; margin: 10px; color: #444; padding: 10px; } ';
+        style.innerHTML = '#overlayContainer { position: absolute; display: flex; flex-wrap: wrap; bottom: 165px; left: 40px; height: 260px; max-width: 100px; } ';
+        style.innerHTML += '.statsContainer { font-size: 30px; border-radius: 4px; opacity: 0.4; background-color: #EFEFEF; margin: 5px; color: #444; padding: 10px; } ';
         style.innerHTML += '.descriptor { font-size: 15px; padding-right: 30px; min-width: 110px; } ';
-        style.innerHTML += '.lineItem { display: flex; margin-top: 10px; width: 300px; justify-content: right; } ';
-        style.innerHTML += '.metricValue { min-width: 150px } ';
-        style.innerHTML += '#cadresistprogress { width: 0%; transition: 990ms linear; height: 2px; background-color: #F00; margin-top: 20px; } ';
+        style.innerHTML += '.lineItem { display: flex; margin-top: 10px; width: 400px; justify-content: right; } ';
+        style.innerHTML += '.metricValue { min-width: 200px } ';
+        style.innerHTML += '#cadresistprogress { width: 0%; transition: 990ms linear; height: 10px; background-color: #E42C13; margin-top: 30px; } ';
         document.getElementsByTagName('head')[0].appendChild(style);
     }
 
@@ -39,6 +39,11 @@ class pelotonLink {
         outputDiv.id = 'overlayContainer';
         outputDiv.innerHTML =
             `<div id="targetMetrics" class="statsContainer">
+                <div claass="lineItem">
+                    <div class="descriptor" id="statusText">
+                        metrics start during warmup...
+                    </div>
+                </div>
                 <div class="lineItem">
                     <div class="descriptor">resistance (peloton)</div>
                     <div id="pReistanceValue" class="metricValue">0</div>
@@ -60,12 +65,8 @@ class pelotonLink {
                     <div class="descriptor" id="trainerName">${this.bluetoothName || 'connecting...'}</div>
                 </div>
                 <div class="lineItem">
-                    <div class="descriptor">cadence</div>
-                    <div id="actualCadenceValue" class="metricValue">0</div>
-                </div>
-                <div class="lineItem">
-                    <div class="descriptor">power</div>
-                    <div id="powerValue" class="metricValue">0</div>
+                    <div class="descriptor">cadence (power)</div>
+                    <div id="returnValue" class="metricValue">0</div>
                 </div>
             </div>`;
 
@@ -96,6 +97,9 @@ class pelotonLink {
         this.rideDetails = await response.json();
         this.classDuration = Number(this.rideDetails.ride.duration);
         this.pedalingStartOffset = Number(this.rideDetails.ride.pedaling_start_offset);
+        if (!this.rideDetails.instructor_cues.length) {
+            document.getElementById('statusText').innerHTML = 'Class does not have target metrics';
+        }
         return this.rideDetails;
     }
 
@@ -111,6 +115,7 @@ class pelotonLink {
     }
 
     async setTrainerResistance(bluetoothAddress, resistance, timecode) {
+        if (!bluetoothAddress) return;
         if (this.lastTrainerPush + this.trainerBuffer >= timecode) return;
         this.lastTrainerPush = timecode;
 
@@ -122,20 +127,26 @@ class pelotonLink {
             const response = await fetch(`http://127.0.0.1:8000/trainer/${bluetoothAddress}/resistance/${resistance}`, { method: 'POST' });
             const stats = await response.json();
             this.trainerBusy = false;
-            if (typeof stats.instantaneous_cadence !== "undefined") document.getElementById('actualCadenceValue').innerHTML = `${stats.instantaneous_cadence} rpm`;
-            if (typeof stats.instantaneous_power !== "undefined") document.getElementById('powerValue').innerHTML = `${stats.instantaneous_power} watts`;
+            if (typeof stats.instantaneous_cadence !== "undefined") document.getElementById('returnValue').innerHTML = `${stats.instantaneous_cadence} rpm (${stats.instantaneous_power} w)`;
             console.log(`success setting trainer resistance to ${resistance}`);
         } catch (e) {
             console.error(`failed to set trainer resistance to ${resistance}`);
         }
     }
 
+    // TODO: make a class to support multiple trainers
+    convertTacxNeo2t (r) {
+        // based on 200 Neutons max force in the pycycling library
+        const forceReduction = 0.7; // make it 30% easier ;p
+        return Math.floor((r / 200) * 100 * forceReduction);
+    }
+
     convertResistance(min, max) {
         return {
             percent: {
-                min: Math.floor((min / 200) * 100),
-                max: Math.floor((max / 200) * 100),
-                avg: Math.floor((((min + max) / 2) / 200) * 100),
+                min: this.convertTacxNeo2t(min),
+                max: this.convertTacxNeo2t(max),
+                avg: this.convertTacxNeo2t((min + max) / 2),
             },
         }
     }
@@ -145,6 +156,7 @@ class pelotonLink {
         document.getElementById('pReistanceValue').innerHTML = `${cue.resistance_range.lower} - ${cue.resistance_range.upper}`;
         document.getElementById('cadenceValue').innerHTML = `${cue.cadence_range.lower} - ${cue.cadence_range.upper} rpm`;
         document.getElementById('tReistanceValue').innerHTML = `${trainer.percent.min} - ${trainer.percent.max} %`;
+        document.getElementById('statusText').innerHTML = '';
 
         let cadResisProgressDiv = document.getElementById('cadresistprogress');
 
