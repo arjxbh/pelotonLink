@@ -1,7 +1,7 @@
 class pelotonLink {
     constructor() {
         // constants
-        this.trainerBuffer = 10; // minimum seconds between pushes to trainer
+        this.trainerBuffer = 8; // minimum seconds between pushes to trainer
 
         // state variables
         this.rideId = window.location.pathname.split('/').pop();
@@ -189,7 +189,11 @@ class pelotonLink {
         this.trainerTimecode = this.uiTimecode + 20;
 
         const { resistance_range } = this.findMatchingMetricOffset(this.trainerTimecode);
-        this.setTrainerResistance(this.bluetoothAddress, resistance_range.lower, this.uiTimecode);
+        this.setTrainerResistance(
+            this.bluetoothAddress, 
+            Math.floor(Number(resistance_range.lower) * 0.7), 
+            this.uiTimecode
+        );
     }
 }
 
