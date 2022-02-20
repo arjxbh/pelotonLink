@@ -1,6 +1,5 @@
 # pelotonLink
-smart trainer control for tacx neo2t with peloton app
-This is designed for 
+This is designed for smart trainer control for tacx neo2t with peloton app
 
 Step 1:
 use bookmarklet/minified/tacx.js to create a bookmarklet in your favorite browser
